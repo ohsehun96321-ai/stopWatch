@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>꼬끼오 스탑워치</title>
+<style>
+  :root {
+    --sky-top: #8fd3ff; --sky-bottom: #e8f7ff; --grass: #7ccf5b; --grass-dark: #5cae3f;
+    --card: rgba(255, 255, 255, 0.85); --text: #3b2a1a; --muted: #9a8470;
+    --line: #f0e2cf; --start: #ffb020; --stop: #e8452c; --neutral: #f3e6d3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --sky-top: #0b1640; --sky-bottom: #2a3a78; --grass: #2f5e2a; --grass-dark: #234a20;
+      --card: rgba(30, 30, 46, 0.85); --text: #fff3e0; --muted: #b8a890;
+      --line: #3a3550; --neutral: #4a4560;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; overflow-x: hidden; color: var(--text);
+    font-family: "Jua", -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+    background: linear-gradient(var(--sky-top), var(--sky-bottom));
+    min-height: 100vh; position: relative;
+  }
+  /* 땅 */
+  .ground {
+    position: fixed; left: 0; right: 0; bottom: 0; height: 90px; z-index: 0; cursor: pointer;
+    background: var(--grass); border-top: 6px solid var(--grass-dark);
+  }
+  .ground::before {
+    content: "🌾   🌱     🌾  🌼    🌱   🌾     🌼  🌱   🌾    🌼   🌱  🌾";
+    position: absolute; top: -26px; left: 0; right: 0; white-space: nowrap;
+    font-size: 24px; letter-spacing: 6px; overflow: hidden;
+  }
+  .coop { position: fixed; bottom: 70px; right: 4vw; font-size: 72px; z-index: 0; }
+  .cloud { position: fixed; font-size: 64px; opacity: .9; z-index: 0; animation: drift linear infinite; }
+  @keyframes drift { from { transform: translateX(-20vw); } to { transform: translateX(120vw); } }
+
+  /* 동물 */
+  #flock { position: fixed; inset: 0; pointer-events: none; z-index: 1; }
+  .chicken {
+    position: absolute; left: 0; top: 0; font-size: 44px; pointer-events: auto; cursor: pointer;
+    user-select: none; will-change: transform; line-height: 1;
+  }
+  .chicken .body {
+    display: inline-block; --f: 1; transform: scaleX(var(--f));
+    animation: flap .25s ease-in-out infinite alternate; transition: font-size .3s;
+  }
+  .chicken.left .body { --f: -1; }
+  @keyframes flap { from { translate: 0 -4px; rotate: -8deg; } to { translate: 0 4px; rotate: 8deg; } }
+  .chicken.walk { z-index: 0; }
+  .chicken.walk .body { animation: none; }
+  /* 먹기: 머리 쪽(이모지 기준 왼쪽 아래)을 축으로 고개를 숙였다 들며 오물오물 */
+  .chicken .head { display: inline-block; transform-origin: 22% 92%; }
+  .chicken.eating .body { animation: none; }
+  .chicken.eating .head { animation: peck var(--peck, .5s) ease-in-out infinite; }
+  @keyframes peck {
+    0%, 30% { rotate: 0deg; translate: 0 0; }
+    50%     { rotate: -30deg; translate: 0 3px; }
+    60%     { rotate: -24deg; translate: 0 2px; }
+    70%     { rotate: -30deg; translate: 0 3px; }
+    100%    { rotate: 0deg; translate: 0 0; }
+  }
+  .feed { transition: scale .15s ease-out; }
+  .crumb {
+    position: absolute; pointer-events: none; z-index: 1; font-size: 9px;
+    animation: crumb .7s ease-out forwards;
+  }
+  @keyframes crumb {
+    40% { transform: translate(calc(var(--dx) * .6), -14px) rotate(var(--rot)); }
+    100% { transform: translate(var(--dx), 6px) rotate(var(--rot)); opacity: 0; }
+  }
+
+  /* 사료 */
+  .feed {
+    position: absolute; left: 0; top: 0; font-size: 24px; pointer-events: none; line-height: 1;
+    animation: plop .5s cubic-bezier(.3, 1.6, .6, 1) both;
+  }
+  @keyframes plop { from { transform: translateY(-60px) scale(.3); opacity: 0; } to { transform: none; opacity: 1; } }
+
+  .feather {
+    position: absolute; font-size: 20px; pointer-events: none; z-index: 3;
+    animation: fall 1.4s ease-out forwards;
+  }
+  @keyframes fall { to { transform: translate(var(--dx), var(--dy)) rotate(var(--rot)); opacity: 0; } }
+  .bubble {
+    position: absolute; z-index: 3; pointer-events: none; font-size: 18px; font-weight: 700;
+    background: #fff; color: #3b2a1a; padding: 4px 10px; border-radius: 14px;
+    box-shadow: 0 2px 6px rgba(0,0,0,.15); animation: pop 1s ease-out forwards; white-space: nowrap;
+  }
+  @keyframes pop { 0% { transform: scale(.3); opacity: 0; } 20% { transform: scale(1.1); opacity: 1; } 80% { opacity: 1; } 100% { transform: translateY(-30px); opacity: 0; } }
+  .egg { position: fixed; z-index: 1; font-size: 26px; pointer-events: none; animation: drop 1s cubic-bezier(.5,0,1,1) forwards; }
+  @keyframes drop { to { transform: translateY(var(--fall)); } }
+
+  /* 스탑워치 카드 */
+  .page {
+    position: relative; z-index: 2; width: calc(100% - 32px); max-width: 300px;
+    margin: 36px auto 140px;
+  }
+  .wrap {
+    width: min(300px, 100%); aspect-ratio: 1; margin: 0 auto; border-radius: 50%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: var(--card); backdrop-filter: blur(6px);
+    box-shadow: 0 10px 30px rgba(0,0,0,.15); border: 6px solid var(--line);
+  }
+  .title { text-align: center; font-size: 15px; margin: 0; color: var(--muted); }
+  .mascot { display: block; text-align: center; font-size: 40px; margin: 0; transition: transform .2s; }
+  .mascot.running { animation: hop .4s ease-in-out infinite alternate; }
+  @keyframes hop { to { transform: translateY(-8px) rotate(6deg); } }
+  .display {
+    font-variant-numeric: tabular-nums; font-size: 48px; font-weight: 700;
+    text-align: center; margin: 0; letter-spacing: -1px; line-height: 1.1;
+  }
+  .display .ms { color: var(--muted); font-size: .65em; }
+  .fed { text-align: center; color: var(--muted); margin: 2px 0 10px; font-size: 13px; }
+  .fed b { color: var(--text); }
+  .buttons { display: flex; gap: 28px; }
+  .laps-box {
+    margin-top: 16px; padding: 4px 14px; border-radius: 22px;
+    background: var(--card); backdrop-filter: blur(6px); box-shadow: 0 6px 18px rgba(0,0,0,.1);
+  }
+  .laps-box:has(ul:empty) { display: none; }
+  button {
+    width: 66px; height: 66px; border-radius: 50%; border: 4px solid rgba(0,0,0,.08);
+    font: inherit; font-size: 15px; cursor: pointer; color: var(--text); background: var(--neutral);
+    transition: transform .08s, opacity .2s; box-shadow: 0 4px 0 rgba(0,0,0,.12);
+  }
+  button:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,.12); }
+  button:disabled { opacity: .4; cursor: default; }
+  #startBtn { background: var(--start); color: #fff; }
+  #startBtn.running { background: var(--stop); }
+  ul { list-style: none; padding: 0; margin: 0; max-height: 26vh; overflow-y: auto; }
+  li:last-child { border-bottom: none; }
+  li {
+    display: flex; justify-content: space-between; padding: 8px 4px; font-size: 14px;
+    border-bottom: 2px dashed var(--line); font-variant-numeric: tabular-nums;
+  }
+  li.best { color: #2f9e44; }
+  li.worst { color: var(--stop); }
+  .hint { text-align: center; color: var(--muted); font-size: 13px; margin: 16px 0 0; line-height: 1.6; }
+</style>
+</head>
+<body>
+<div class="cloud" style="top:8vh; animation-duration:70s; animation-delay:-20s">☁️</div>
+<div class="cloud" style="top:22vh; animation-duration:95s; animation-delay:-60s">☁️</div>
+<div class="ground" id="ground"></div>
+<div class="coop">🛖</div>
+<div id="flock"></div>
+
+<div class="page">
+<div class="wrap">
+  <p class="title">꼬끼오 스탑워치</p>
+  <span class="mascot" id="mascot">🐓</span>
+  <div class="display" id="display">00:00<span class="ms">.00</span></div>
+  <p class="fed">냠냠 먹은 사료 <b id="fedCount">0</b>개</p>
+  <div class="buttons">
+    <button id="lapBtn" disabled>랩</button>
+    <button id="startBtn">시작</button>
+  </div>
+</div>
+<div class="laps-box"><ul id="laps"></ul></div>
+  <p class="hint">Space: 시작/정지 · L: 랩 · R: 재설정<br>동물을 누르거나 풀밭에 사료를 뿌려 보세요!</p>
+</div>
+
+<script>
+  /* ---------- 스탑워치 ---------- */
+  const display = document.getElementById('display');
+  const startBtn = document.getElementById('startBtn');
+  const lapBtn = document.getElementById('lapBtn');
+  const lapsEl = document.getElementById('laps');
+  const mascot = document.getElementById('mascot');
+  const fedCount = document.getElementById('fedCount');
+
+  let running = false, startTime = 0, elapsed = 0, lapStart = 0, laps = [], eaten = 0;
+
+  const pad = n => String(n).padStart(2, '0');
+  function fmt(ms) {
+    const cs = Math.floor(ms / 10) % 100, s = Math.floor(ms / 1000) % 60;
+    const m = Math.floor(ms / 60000) % 60, h = Math.floor(ms / 3600000);
+    return { main: (h ? h + ':' : '') + pad(m) + ':' + pad(s), ms: '.' + pad(cs) };
+  }
+  const now = () => running ? elapsed + (performance.now() - startTime) : elapsed;
+
+  function renderTime() {
+    const t = fmt(now());
+    display.innerHTML = t.main + '<span class="ms">' + t.ms + '</span>';
+    const cur = lapsEl.querySelector('[data-current]');
+    if (cur) { const c = fmt(now() - lapStart); cur.lastChild.textContent = c.main + c.ms; }
+  }
+
+  function renderLaps() {
+    lapsEl.innerHTML = '';
+    const all = running || elapsed > 0 ? [...laps, now() - lapStart] : [];
+    const min = laps.length > 1 ? Math.min(...laps) : null;
+    const max = laps.length > 1 ? Math.max(...laps) : null;
+    for (let i = all.length - 1; i >= 0; i--) {
+      const li = document.createElement('li');
+      const t = fmt(all[i]);
+      let icon = '🥚';
+      if (i < laps.length) {
+        if (all[i] === min) { li.className = 'best'; icon = '🐥'; }
+        else if (all[i] === max) { li.className = 'worst'; icon = '🐢'; }
+      } else { li.dataset.current = '1'; icon = '🐣'; }
+      li.innerHTML = '<span>' + icon + ' 랩 ' + (i + 1) + '</span><span>' + t.main + t.ms + '</span>';
+      lapsEl.appendChild(li);
+    }
+  }
+
+  function toggle() {
+    if (running) {
+      elapsed = now(); running = false;
+      startBtn.textContent = '시작'; startBtn.classList.remove('running');
+      lapBtn.textContent = '재설정'; mascot.classList.remove('running'); mascot.textContent = '🐔';
+    } else {
+      startTime = performance.now(); running = true;
+      startBtn.textContent = '정지'; startBtn.classList.add('running');
+      lapBtn.textContent = '랩'; lapBtn.disabled = false;
+      mascot.classList.add('running'); mascot.textContent = '🐓';
+      renderLaps();
+      for (let i = 0; i < 3; i++) setTimeout(() => spawnAnimal(i % 2 ? 'walk' : 'fly'), i * 250);
+    }
+  }
+
+  function lapOrReset() {
+    if (running) {
+      const t = now(); laps.push(t - lapStart); lapStart = t; renderLaps();
+      // 랩마다 날고 있는 닭이나 오리가 알을 떨어뜨림
+      const layers = animals.filter(c => c.kind.egg && !c.target && !c.eatT);
+      const c = layers[Math.floor(Math.random() * layers.length)];
+      if (c) dropEgg(c.x + 20, c.y + 40);
+      else spawnAnimal('fly');
+    } else {
+      elapsed = 0; lapStart = 0; laps = []; eaten = 0; fedCount.textContent = '0';
+      lapBtn.textContent = '랩'; lapBtn.disabled = true; mascot.textContent = '🐓';
+      feeds.slice().forEach(removeFeed);
+      animals.forEach(c => { c.scale = 1; c.target = null; c.eatT = 0; c.el.classList.remove('eating'); applySize(c); });
+      renderTime(); renderLaps();
+    }
+  }
+
+  startBtn.addEventListener('click', toggle);
+  lapBtn.addEventListener('click', lapOrReset);
+  document.addEventListener('keydown', e => {
+    if (e.code === 'Space') { e.preventDefault(); toggle(); }
+    else if (e.key === 'l' || e.key === 'L') { if (running) lapOrReset(); }
+    else if (e.key === 'r' || e.key === 'R') { if (!running && elapsed > 0) lapOrReset(); }
+  });
+
+  /* ---------- 동물 ---------- */
+  const flock = document.getElementById('flock');
+  // fly: 하늘을 날아다님 / walk: 풀밭 위를 걸어다님 / food: 먹는 사료
+  const ANIMALS = [
+    { name: '닭',    emoji: ['🐔', '🐓'], mode: 'fly',  size: [34, 56], speed: [1.4, 3.6], egg: true, food: ['🌽'], puff: '🪶', sounds: ['꼬끼오!', '꼬꼬댁!', '꼭꼭!', '푸드덕!'] },
+    { name: '오리',  emoji: ['🦆'],       mode: 'fly',  size: [34, 52], speed: [1.6, 3.4], egg: true, food: ['🌽'], puff: '🪶', sounds: ['꽥꽥!', '꽤액!', '꽥?'] },
+    { name: '병아리', emoji: ['🐥', '🐤', '🐣'], mode: 'walk', size: [22, 30], speed: [0.8, 1.6], food: ['🌽'], puff: '💛', sounds: ['삐약!', '삐약삐약!', '삐?'] },
+    { name: '돼지',  emoji: ['🐖'],       mode: 'walk', size: [44, 58], speed: [0.5, 1.0], food: ['🍎', '🥕', '🌽'], puff: '💨', sounds: ['꿀꿀!', '꿀꿀꿀!', '꾸엑!'] },
+    { name: '젖소',  emoji: ['🐄'],       mode: 'walk', size: [52, 66], speed: [0.3, 0.7], food: ['🥬', '🥕'], puff: '🥛', sounds: ['음메~', '음머어~', '우유 먹을래?'] },
+    { name: '소',    emoji: ['🐂'],       mode: 'walk', size: [52, 66], speed: [0.4, 0.8], food: ['🥬', '🥕'], puff: '💨', sounds: ['음메!', '움머!', '흥!'] },
+    { name: '양',    emoji: ['🐑'],       mode: 'walk', size: [38, 50], speed: [0.5, 1.0], food: ['🥬'],       puff: '☁️', sounds: ['메에~', '매애애~'] },
+    { name: '염소',  emoji: ['🐐'],       mode: 'walk', size: [38, 50], speed: [0.6, 1.2], food: ['🥬', '🥕'], puff: '💨', sounds: ['음매~', '메헤헤!'] },
+    { name: '칠면조', emoji: ['🦃'],      mode: 'walk', size: [36, 48], speed: [0.7, 1.3], food: ['🌽'],       puff: '🪶', sounds: ['골골골!', '꾸르륵!'] },
+  ];
+  const SPEED = 2.2;   // 전체 속도 배율
+  const FEEDS = ['🌽', '🌽', '🌽', '🍎', '🥕', '🥬'];
+  const EAT_SOUNDS = ['냠냠!', '쩝쩝!', '맛있다!', '오물오물'];
+  const MAX_SCALE = 1.8;
+  const pick = a => a[Math.floor(Math.random() * a.length)];
+  const rand = ([a, b]) => a + Math.random() * (b - a);
+  const animals = [];
+  const feeds = [];
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const groundTop = () => innerHeight - 92;
+
+  function applySize(c) { c.el.style.fontSize = (c.size * c.scale) + 'px'; }
+  // 동물 이모지는 기본으로 왼쪽을 보고 있으므로, 오른쪽으로 갈 때만 좌우 반전
+  function setFacing(c, dir) { c.el.classList.toggle('left', dir > 0); }
+  function walkY(c) { return groundTop() - c.size * c.scale * 1.05 + c.lane; }
+
+  function spawnAnimal(mode) {
+    const W = innerWidth, H = innerHeight;
+    const kind = pick(ANIMALS.filter(a => a.mode === (mode || 'fly')));
+    const fromLeft = Math.random() < .5;
+    const el = document.createElement('div');
+    el.className = 'chicken ' + kind.mode;
+    el.innerHTML = '<span class="body"><span class="head">' + pick(kind.emoji) + '</span></span>';
+    flock.appendChild(el);
+    const walk = kind.mode === 'walk';
+    // 새는 빠르게 콕콕, 큰 동물은 천천히 우물우물
+    const peck = kind.food.length === 1 && kind.food[0] === '🌽' ? rand([0.3, 0.42]) : rand([0.75, 1.0]);
+    el.style.setProperty('--peck', peck + 's');
+    const c = {
+      el, kind, walk, scale: 1, size: rand(kind.size), lane: Math.random() * 24,
+      x: fromLeft ? -80 : W + 10, vx: (fromLeft ? 1 : -1) * rand(kind.speed),
+      phase: Math.random() * Math.PI * 2,
+      amp: walk ? 3 + Math.random() * 3 : 20 + Math.random() * 40,
+      baseY: 40 + Math.random() * (H - 260), target: null, eatT: 0, jump: 0,
+      peckFrames: peck * 60, biteT: 0
+    };
+    c.y = walk ? walkY(c) : c.baseY;
+    applySize(c); setFacing(c, c.vx);
+    el.addEventListener('pointerdown', e => { e.stopPropagation(); squawk(c); });
+    animals.push(c);
+  }
+
+  function bubble(x, y, text) {
+    const b = document.createElement('div');
+    b.className = 'bubble'; b.textContent = text;
+    b.style.left = x + 'px'; b.style.top = (y - 30) + 'px';
+    document.body.appendChild(b);
+    setTimeout(() => b.remove(), 1000);
+  }
+
+  function squawk(c) {
+    const x = c.x + 20, y = c.y;
+    bubble(x, y, pick(c.kind.sounds));
+    for (let i = 0; i < 8; i++) {
+      const f = document.createElement('div');
+      f.className = 'feather'; f.textContent = c.kind.puff;
+      f.style.left = x + 'px'; f.style.top = (y + 20) + 'px';
+      f.style.setProperty('--dx', (Math.random() * 160 - 80) + 'px');
+      f.style.setProperty('--dy', (40 + Math.random() * 120) + 'px');
+      f.style.setProperty('--rot', (Math.random() * 720 - 360) + 'deg');
+      document.body.appendChild(f);
+      setTimeout(() => f.remove(), 1400);
+    }
+    // 놀라면 먹던 것도 내버려 두고 도망
+    releaseTarget(c);
+    c.vx = Math.sign(c.vx || 1) * Math.abs(c.vx) * 2.2;
+    if (c.walk) c.jump = 1; else c.baseY = Math.max(20, c.y - 80);
+  }
+
+  function dropEgg(x, y) {
+    const e = document.createElement('div');
+    e.className = 'egg'; e.textContent = '🥚';
+    e.style.left = x + 'px'; e.style.top = y + 'px';
+    e.style.setProperty('--fall', Math.max(0, innerHeight - 110 - y) + 'px');
+    document.body.appendChild(e);
+    setTimeout(() => { e.textContent = '🐣'; }, 1000);
+    setTimeout(() => e.remove(), 2600);
+  }
+
+  /* ---------- 사료 ---------- */
+  function spawnFeed(x, emoji) {
+    if (feeds.length >= 24) return;
+    const el = document.createElement('div');
+    el.className = 'feed';
+    el.textContent = emoji || pick(FEEDS);
+    const bites = 4 + Math.floor(Math.random() * 4);   // 몇 입에 나눠 먹을지
+    const f = { el, food: el.textContent, x, y: groundTop() - 20 + Math.random() * 22, owner: null, bites, maxBites: bites };
+    el.style.transform = '';
+    el.style.left = (f.x - 12) + 'px'; el.style.top = f.y + 'px';
+    flock.appendChild(el);
+    feeds.push(f);
+  }
+  function removeFeed(f) {
+    f.el.remove();
+    const i = feeds.indexOf(f); if (i >= 0) feeds.splice(i, 1);
+    if (f.owner) { f.owner.target = null; f.owner = null; }
+  }
+  function releaseTarget(c) {
+    if (c.target) c.target.owner = null;
+    c.target = null; c.eatT = 0; c.el.classList.remove('eating');
+  }
+  function findFeed(c) {
+    let best = null, bd = Infinity;
+    for (const f of feeds) {
+      if (f.owner || !c.kind.food.includes(f.food)) continue;
+      const d = Math.abs(f.x - c.x) + Math.abs(f.y - c.y) * 0.3;
+      if (d < bd) { bd = d; best = f; }
+    }
+    return best;
+  }
+  // 한 입 먹기: 사료가 조금씩 작아지고 부스러기가 튐
+  function bite(c) {
+    const f = c.target;
+    if (!f) return;
+    f.bites--;
+    f.el.style.scale = String(0.3 + 0.7 * Math.max(0, f.bites) / f.maxBites);
+    const n = 2 + Math.floor(Math.random() * 2);
+    for (let i = 0; i < n; i++) {
+      const p = document.createElement('div');
+      p.className = 'crumb'; p.textContent = f.food;
+      p.style.left = (f.x - 4) + 'px'; p.style.top = (f.y + 8) + 'px';
+      p.style.setProperty('--dx', (Math.random() * 40 - 20) + 'px');
+      p.style.setProperty('--rot', (Math.random() * 360) + 'deg');
+      flock.appendChild(p);
+      setTimeout(() => p.remove(), 700);
+    }
+    if (f.bites <= 0) finishEating(c);
+  }
+
+  function finishEating(c) {
+    const f = c.target;
+    c.el.classList.remove('eating'); c.eatT = 0; c.target = null;
+    if (f) { f.owner = null; removeFeed(f); }
+    eaten++; fedCount.textContent = eaten;
+    c.scale = Math.min(MAX_SCALE, c.scale + 0.12);   // 먹을수록 통통해짐
+    applySize(c);
+    bubble(c.x + 10, c.y, c.scale >= MAX_SCALE ? '배불러~' : pick(EAT_SOUNDS));
+    c.vx = (Math.random() < .5 ? -1 : 1) * rand(c.kind.speed);
+    setFacing(c, c.vx);
+    if (!c.walk) c.baseY = 40 + Math.random() * (innerHeight - 260);  // 다시 하늘로
+  }
+
+  // 풀밭을 누르면 사료 뿌리기
+  document.getElementById('ground').addEventListener('pointerdown', e => {
+    spawnFeed(e.clientX);
+  });
+
+  /* ---------- 애니메이션 루프 ---------- */
+  let last = performance.now(), spawnTimer = 0, feedTimer = 60;
+  function loop(t) {
+    const dt = Math.min(50, t - last) / 16.67; last = t;
+    if (running) renderTime();
+    const W = innerWidth;
+
+    // 달리는 중엔 동물이 더 많이, 쉴 땐 가끔
+    const flyTarget = reduceMotion ? 0 : (running ? 16 : 6);
+    const walkTarget = reduceMotion ? 0 : (running ? 22 : 10);
+    spawnTimer -= dt;
+    if (spawnTimer <= 0) {
+      const flying = animals.filter(c => !c.walk).length;
+      const walking = animals.length - flying;
+      if (flying < flyTarget && (walking >= walkTarget || Math.random() < .5)) spawnAnimal('fly');
+      else if (walking < walkTarget) spawnAnimal('walk');
+      spawnTimer = running ? 6 : 15;
+    }
+
+    // 시간이 갈수록 사료가 더 자주 떨어짐 (3초 → 최소 0.7초 간격)
+    if (running && !reduceMotion) {
+      feedTimer -= dt;
+      if (feedTimer <= 0) {
+        spawnFeed(W * (0.08 + Math.random() * 0.84));
+        const sec = now() / 1000;
+        feedTimer = Math.max(15, 60 - sec * 0.5);
+      }
+    }
+
+    for (let i = animals.length - 1; i >= 0; i--) {
+      const c = animals[i];
+      c.phase += (c.walk ? 0.25 : 0.05) * SPEED * dt;
+
+      // 사료 찾기: 걷는 동물은 바로, 나는 동물은 가끔 내려와서 먹음
+      if (!c.target && !c.jump && c.x > 0 && c.x < W - 40 && (c.walk || Math.random() < 0.012 * dt)) {
+        const f = findFeed(c);
+        if (f) { c.target = f; f.owner = c; }
+      }
+
+      if (c.target && c.eatT > 0) {
+        // 먹는 중: 고개를 숙이는 순간마다 한 입씩
+        c.biteT -= dt;
+        if (c.biteT <= 0) { c.biteT += c.peckFrames; bite(c); }
+      } else if (c.target) {
+        // 사료로 이동 — 입(머리 쪽)이 사료에 닿도록 위치 맞추기
+        const f = c.target;
+        const w = c.size * c.scale * 1.15;
+        const side = Math.sign(f.x - (c.x + w / 2)) || 1;
+        const tx = side > 0 ? f.x - w * 0.85 : f.x - w * 0.15;
+        const ty = c.walk ? walkY(c) : f.y - c.size * c.scale * 0.8;
+        const dx = tx - c.x, dy = ty - c.y, dist = Math.hypot(dx, dy) || 1;
+        const sp = (c.walk ? Math.abs(c.vx) * 1.4 + 0.6 : 4.5) * (running ? 1.3 : 1) * SPEED * dt;
+        setFacing(c, Math.abs(dx) > 3 ? dx : side);
+        if (dist <= sp + 2) {
+          c.x = tx; c.y = ty; c.eatT = 1; c.biteT = c.peckFrames * 0.55;
+          setFacing(c, side); c.el.classList.add('eating');
+        } else {
+          c.x += dx / dist * sp;
+          c.y = c.walk ? walkY(c) - Math.abs(Math.sin(c.phase)) * c.amp : c.y + dy / dist * sp;
+        }
+      } else {
+        // 그냥 돌아다니기
+        c.x += c.vx * (running ? 1.5 : 1) * SPEED * dt;
+        if (c.walk) {
+          let hop = -Math.abs(Math.sin(c.phase)) * c.amp;
+          if (c.jump) { hop -= Math.sin(c.jump * Math.PI) * 50; c.jump = Math.max(0, c.jump - 0.04 * dt); }
+          c.y = walkY(c) + hop;
+        } else {
+          const ty = c.baseY + Math.sin(c.phase) * c.amp;
+          c.y += (ty - c.y) * Math.min(1, 0.06 * dt);
+        }
+        if (c.x < -140 || c.x > W + 140) { c.el.remove(); animals.splice(i, 1); continue; }
+      }
+      c.el.style.transform = 'translate(' + c.x + 'px,' + c.y + 'px)';
+    }
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+</script>
+</body>
+</html>
